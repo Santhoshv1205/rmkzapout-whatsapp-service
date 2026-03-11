@@ -4,9 +4,11 @@ const { Client, LocalAuth } = pkg
 import fs from "fs"
 import path from "path"
 
+export let isReady = false
+
 const SESSION_PATH = "/app/sessions"
 
-function clearChromiumLocks() {
+function clearLocks() {
 
   const lockFiles = [
     "SingletonLock",
@@ -31,7 +33,7 @@ function clearChromiumLocks() {
 
 }
 
-clearChromiumLocks()
+clearLocks()
 
 const client = new Client({
   authStrategy: new LocalAuth({
@@ -39,18 +41,34 @@ const client = new Client({
   }),
   puppeteer: {
     headless: true,
-    executablePath: "/usr/bin/chromium-browser",
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-gpu",
-      "--disable-dev-tools",
       "--no-first-run",
       "--no-zygote",
       "--single-process"
     ]
   }
+})
+
+client.on("qr", () => {
+  console.log("QR generated. Open /qr")
+})
+
+client.on("ready", () => {
+  isReady = true
+  console.log("WhatsApp Ready")
+})
+
+client.on("authenticated", () => {
+  console.log("WhatsApp Authenticated")
+})
+
+client.on("disconnected", (reason) => {
+  isReady = false
+  console.log("WhatsApp Disconnected:", reason)
 })
 
 export default client

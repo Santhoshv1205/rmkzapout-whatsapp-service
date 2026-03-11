@@ -1,74 +1,56 @@
-import express from "express";
-import bodyParser from "body-parser";
-import qrcode from "qrcode";
-import client from "./whatsappClient.js";
+import express from "express"
+import QRCode from "qrcode"
+import client from "./whatsappClient.js"
+import { startWhatsApp, sendWhatsAppMessage } from "./whatsappService.js"
 
-import {
-  sendWhatsAppMessage,
-  getStatus,
-  startWhatsApp
-} from "./whatsappService.js";
+const app = express()
+app.use(express.json())
 
-const app = express();
-const PORT = process.env.PORT || 8080;
+let latestQR = null
 
-app.use(bodyParser.json());
+client.on("qr", qr => {
+  latestQR = qr
+})
 
-let latestQR = null;
+app.get("/qr", async (req, res) => {
 
-client.on("qr", async (qr) => {
-  latestQR = await qrcode.toDataURL(qr);
-});
-
-app.get("/", (req, res) => {
-  res.send("WhatsApp Service Running");
-});
-
-app.get("/qr", (req, res) => {
   if (!latestQR) {
-    return res.send("QR not generated yet");
+    return res.send("No QR available or already authenticated")
   }
 
-  res.send(`
-  <html>
-  <body style="display:flex;justify-content:center;align-items:center;height:100vh;">
-  <img src="${latestQR}" />
-  </body>
-  </html>
-  `);
-});
+  const qrImage = await QRCode.toDataURL(latestQR)
 
-app.get("/status", (req, res) => {
-  res.json(getStatus());
-});
+  res.send(`<img src="${qrImage}" />`)
 
-app.post("/send", async (req, res) => {
+})
+
+app.post("/send-message", async (req, res) => {
+
   try {
-    const { number, message } = req.body;
 
-    await sendWhatsAppMessage(number, message);
+    const { number, message } = req.body
 
-    res.json({
-      success: true,
-      message: "Message sent"
-    });
+    await sendWhatsAppMessage(number, message)
 
-  } catch (err) {
+    res.json({ success: true })
 
-    console.error("Send message error:", err.message);
+  } catch (error) {
 
     res.status(500).json({
       success: false,
-      error: err.message
-    });
+      error: error.message
+    })
 
   }
-});
+
+})
+
+const PORT = process.env.PORT || 8080
 
 app.listen(PORT, async () => {
 
-  console.log(`WhatsApp Service running on port ${PORT}`);
+  console.log("WhatsApp Service running on port", PORT)
 
-  await startWhatsApp();
+  await startWhatsApp()
 
-});
+})
