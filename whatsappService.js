@@ -1,4 +1,6 @@
 import pkg from "whatsapp-web.js";
+import qrcode from "qrcode-terminal";
+
 const { Client, LocalAuth } = pkg;
 
 let client;
@@ -11,15 +13,14 @@ export const startWhatsApp = async () => {
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu"
+        "--disable-dev-shm-usage"
       ]
     }
   });
 
   client.on("qr", (qr) => {
     console.log("Scan this QR with WhatsApp:");
-    console.log(qr);
+    qrcode.generate(qr, { small: true });
   });
 
   client.on("ready", () => {
@@ -38,10 +39,6 @@ export const startWhatsApp = async () => {
 };
 
 export const sendMessage = async (number, message) => {
-  if (!client) {
-    throw new Error("WhatsApp client not initialized");
-  }
-
   let cleanNumber = number.replace(/\D/g, "");
 
   if (cleanNumber.length === 10) {
