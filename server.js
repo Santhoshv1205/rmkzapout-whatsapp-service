@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { startWhatsApp, sendMessage, getQR } from "./whatsappService.js";
+import { startWhatsApp, sendMessage, getQR, isClientReady } from "./whatsappService.js";
 
 dotenv.config();
 
@@ -29,15 +29,41 @@ app.get("/qr", (req, res) => {
   `);
 });
 
+app.get("/status", (req, res) => {
+  res.json({
+    whatsappReady: isClientReady()
+  });
+});
+
 app.post("/send-message", async (req, res) => {
+
+  console.log("Incoming message request:", req.body);
+
   try {
     const { number, message } = req.body;
 
-    await sendMessage(number, message);
+    if (!number || !message) {
+      return res.status(400).json({
+        success: false,
+        error: "number and message required"
+      });
+    }
 
-    res.json({ success: true });
+    const result = await sendMessage(number, message);
+
+    res.json({
+      success: true,
+      messageId: result.id._serialized
+    });
+
   } catch (error) {
-    res.status(500).json({ error: error.message });
+
+    console.error("Send error:", error);
+
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 

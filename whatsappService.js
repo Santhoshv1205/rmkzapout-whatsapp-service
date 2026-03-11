@@ -5,8 +5,10 @@ const { Client, LocalAuth } = pkg;
 
 let client;
 let qrImage = null;
+let ready = false;
 
 export const startWhatsApp = async () => {
+
   client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
@@ -21,24 +23,36 @@ export const startWhatsApp = async () => {
 
   client.on("qr", async (qr) => {
     console.log("QR received");
-
     qrImage = await QRCode.toDataURL(qr);
   });
 
   client.on("ready", () => {
     console.log("WhatsApp client is ready");
+    ready = true;
   });
 
   client.on("authenticated", () => {
     console.log("WhatsApp authenticated");
   });
 
+  client.on("disconnected", (reason) => {
+    console.log("WhatsApp disconnected:", reason);
+    ready = false;
+  });
+
   await client.initialize();
 };
+
+export const isClientReady = () => ready;
 
 export const getQR = () => qrImage;
 
 export const sendMessage = async (number, message) => {
+
+  if (!ready) {
+    throw new Error("WhatsApp client not ready");
+  }
+
   let cleanNumber = number.replace(/\D/g, "");
 
   if (cleanNumber.length === 10) {
@@ -47,5 +61,5 @@ export const sendMessage = async (number, message) => {
 
   const chatId = `${cleanNumber}@c.us`;
 
-  await client.sendMessage(chatId, message);
+  return await client.sendMessage(chatId, message);
 };
