@@ -7,8 +7,8 @@ export let isReady = false
 
 const client = new Client({
   authStrategy: new LocalAuth({
-    dataPath: "./sessions"
-  }),
+  dataPath: "/app/sessions"
+}),
   puppeteer: {
     headless: true,
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
