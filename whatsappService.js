@@ -12,13 +12,18 @@ export const startWhatsApp = async () => {
   client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage"
-      ]
-    }
+  headless: true,
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--disable-extensions",
+    "--disable-background-networking",
+    "--disable-background-timer-throttling",
+    "--disable-renderer-backgrounding"
+  ]
+}
   });
 
   client.on("qr", async (qr) => {
@@ -29,13 +34,17 @@ export const startWhatsApp = async () => {
 
   });
 
-  client.on("ready", () => {
+  client.on("ready", async () => {
 
-    console.log("WhatsApp client is ready");
+  console.log("WhatsApp client is ready");
 
-    ready = true;
+  ready = true;
 
-  });
+  const state = await client.getState();
+
+  console.log("WhatsApp state:", state);
+
+});
 
   client.on("authenticated", () => {
 
@@ -79,7 +88,7 @@ export const sendMessage = async (number, message) => {
     const result = await Promise.race([
       client.sendMessage(chatId, message),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("WhatsApp send timeout")), 15000)
+        setTimeout(() => reject(new Error("WhatsApp send timeout")), 30000)
       )
     ]);
 
