@@ -1,56 +1,70 @@
 import express from "express"
-import QRCode from "qrcode"
-import client from "./whatsappClient.js"
-import { startWhatsApp, sendWhatsAppMessage } from "./whatsappService.js"
+import cors from "cors"
+import qrcode from "qrcode"
+
+import { latestQR, isReady } from "./whatsappClient.js"
+import { sendWhatsAppMessage } from "./whatsappService.js"
 
 const app = express()
+
+app.use(cors())
 app.use(express.json())
 
-let latestQR = null
+app.get("/", (req, res) => {
+  res.send("WhatsApp Service Running")
+})
 
-client.on("qr", qr => {
-  latestQR = qr
+app.get("/status", (req, res) => {
+  res.json({
+    ready: isReady
+  })
 })
 
 app.get("/qr", async (req, res) => {
 
   if (!latestQR) {
-    return res.send("No QR available or already authenticated")
+    return res.send("QR not available")
   }
 
-  const qrImage = await QRCode.toDataURL(latestQR)
+  const qrImage = await qrcode.toDataURL(latestQR)
 
-  res.send(`<img src="${qrImage}" />`)
+  res.send(`
+  <h2>Scan WhatsApp QR</h2>
+  <img src="${qrImage}" />
+  `)
 
 })
 
-app.post("/send-message", async (req, res) => {
+app.post("/send", async (req, res) => {
 
   try {
 
     const { number, message } = req.body
 
+    if (!number || !message) {
+      return res.status(400).json({
+        error: "Number and message required"
+      })
+    }
+
     await sendWhatsAppMessage(number, message)
 
-    res.json({ success: true })
+    res.json({
+      success: true
+    })
 
-  } catch (error) {
+  } catch (err) {
 
     res.status(500).json({
       success: false,
-      error: error.message
+      error: err.message
     })
-
   }
 
 })
 
 const PORT = process.env.PORT || 8080
 
-app.listen(PORT, async () => {
-
+app.listen(PORT, () => {
   console.log("WhatsApp Service running on port", PORT)
-
-  await startWhatsApp()
-
 })

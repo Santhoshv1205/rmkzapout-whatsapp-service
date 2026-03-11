@@ -1,9 +1,5 @@
 import client, { isReady } from "./whatsappClient.js"
 
-export const startWhatsApp = async () => {
-  await client.initialize()
-}
-
 export const sendWhatsAppMessage = async (number, message) => {
 
   if (!isReady) {
@@ -18,34 +14,24 @@ export const sendWhatsAppMessage = async (number, message) => {
 
   const chatId = `${cleanNumber}@c.us`
 
-  let attempts = 0
-  const maxAttempts = 3
+  try {
 
-  while (attempts < maxAttempts) {
+    const isRegistered = await client.isRegisteredUser(chatId)
 
-    try {
-
-      await client.sendMessage(chatId, message)
-
-      console.log("Message sent to:", cleanNumber)
-
-      return
-
-    } catch (error) {
-
-      attempts++
-
-      console.log(`Send attempt ${attempts} failed:`, error.message)
-
-      if (attempts >= maxAttempts) {
-        console.error("Final send message failure:", error.message)
-        throw error
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 3000))
-
+    if (!isRegistered) {
+      throw new Error("Number not on WhatsApp")
     }
 
-  }
+    await client.sendMessage(chatId, message)
 
+    console.log("Message sent to:", cleanNumber)
+
+    return true
+
+  } catch (err) {
+
+    console.error("Send message error:", err.message)
+    throw err
+
+  }
 }
