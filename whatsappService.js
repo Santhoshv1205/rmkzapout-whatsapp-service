@@ -1,9 +1,10 @@
 import pkg from "whatsapp-web.js";
-import qrcode from "qrcode-terminal";
+import QRCode from "qrcode";
 
 const { Client, LocalAuth } = pkg;
 
 let client;
+let qrImage = null;
 
 export const startWhatsApp = async () => {
   client = new Client({
@@ -18,9 +19,10 @@ export const startWhatsApp = async () => {
     }
   });
 
-  client.on("qr", (qr) => {
-    console.log("Scan this QR with WhatsApp:");
-    qrcode.generate(qr, { small: true });
+  client.on("qr", async (qr) => {
+    console.log("QR received");
+
+    qrImage = await QRCode.toDataURL(qr);
   });
 
   client.on("ready", () => {
@@ -31,12 +33,10 @@ export const startWhatsApp = async () => {
     console.log("WhatsApp authenticated");
   });
 
-  client.on("auth_failure", (msg) => {
-    console.error("Auth failure:", msg);
-  });
-
   await client.initialize();
 };
+
+export const getQR = () => qrImage;
 
 export const sendMessage = async (number, message) => {
   let cleanNumber = number.replace(/\D/g, "");
