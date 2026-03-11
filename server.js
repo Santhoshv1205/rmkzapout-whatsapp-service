@@ -20,6 +20,7 @@ app.get("/status", (req, res) => {
 })
 
 app.get("/qr", async (req, res) => {
+
   if (!latestQR) {
     return res.send("QR not available")
   }
@@ -30,10 +31,13 @@ app.get("/qr", async (req, res) => {
     <h2>Scan WhatsApp QR</h2>
     <img src="${qrImage}" />
   `)
+
 })
 
 app.post("/send", async (req, res) => {
+
   try {
+
     const { number, message } = req.body
 
     if (!number || !message) {
@@ -42,20 +46,30 @@ app.post("/send", async (req, res) => {
       })
     }
 
-    await sendWhatsAppMessage(number, message)
+    await Promise.race([
+      sendWhatsAppMessage(number, message),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Send timeout")), 20000)
+      )
+    ])
 
     res.json({
       success: true
     })
-  } catch (error) {
+
+  } catch (err) {
+
+    console.error(err)
+
     res.status(500).json({
       success: false,
-      error: error.message
+      error: err.message
     })
   }
+
 })
 
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT || 8080
 
 app.listen(PORT, () => {
   console.log("WhatsApp Service running on port", PORT)
