@@ -40,9 +40,14 @@ client.on("authenticated", () => {
   console.log("WhatsApp Authenticated")
 })
 
-client.on("disconnected", (reason) => {
-  console.log("WhatsApp disconnected:", reason)
+client.on("auth_failure", (msg) => {
   isReady = false
+  console.error("Auth failure:", msg)
+})
+
+client.on("disconnected", (reason) => {
+  isReady = false
+  console.warn("Disconnected:", reason)
 })
 
 client.initialize()
