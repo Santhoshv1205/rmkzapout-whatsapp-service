@@ -10,14 +10,16 @@ const client = new Client({
     dataPath: "./sessions"
   }),
   puppeteer: {
-  headless: true,
-  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-  args: [
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-dev-shm-usage"
-  ]
-}
+    headless: true,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+    protocolTimeout: 120000,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu"
+    ]
+  }
 })
 
 client.on("qr", (qr) => {
@@ -38,7 +40,7 @@ client.on("authenticated", () => {
 
 client.on("auth_failure", (msg) => {
   isReady = false
-  console.error("Auth Failure:", msg)
+  console.error("Auth failure:", msg)
 })
 
 client.on("disconnected", (reason) => {

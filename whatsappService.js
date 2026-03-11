@@ -2,6 +2,7 @@ import client, { isReady } from "./whatsappClient.js"
 
 export const sendWhatsAppMessage = async (number, message) => {
   try {
+
     if (!isReady) {
       throw new Error("WhatsApp client not ready")
     }
@@ -14,11 +15,14 @@ export const sendWhatsAppMessage = async (number, message) => {
 
     const chatId = `${cleanNumber}@c.us`
 
-    await client.sendMessage(chatId, message)
+    const chat = await client.getChatById(chatId)
+
+    await chat.sendMessage(message)
 
     console.log("Message sent to:", cleanNumber)
 
     return true
+
   } catch (error) {
     console.error("Send message error:", error.message)
     throw error
