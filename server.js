@@ -1,74 +1,43 @@
 import express from "express";
-import bodyParser from "body-parser";
-import qrcode from "qrcode";
-import client from "./whatsappClient.js";
+import cors from "cors";
+import dotenv from "dotenv";
+import { startWhatsApp, sendMessage } from "./whatsappService.js";
 
-import {
-  sendWhatsAppMessage,
-  getStatus,
-  startWhatsApp
-} from "./whatsappService.js";
+dotenv.config();
 
 const app = express();
+
+app.use(cors());
+app.use(express.json());
+
 const PORT = process.env.PORT || 8080;
 
-app.use(bodyParser.json());
-
-let latestQR = null;
-
-client.on("qr", async (qr) => {
-  latestQR = await qrcode.toDataURL(qr);
-});
-
 app.get("/", (req, res) => {
-  res.send("WhatsApp Service Running");
+  res.send("RMK ZapOut WhatsApp Service Running");
 });
 
-app.get("/qr", (req, res) => {
-  if (!latestQR) {
-    return res.send("QR not generated yet");
-  }
-
-  res.send(`
-  <html>
-  <body style="display:flex;justify-content:center;align-items:center;height:100vh;">
-  <img src="${latestQR}" />
-  </body>
-  </html>
-  `);
-});
-
-app.get("/status", (req, res) => {
-  res.json(getStatus());
-});
-
-app.post("/send", async (req, res) => {
+app.post("/send-message", async (req, res) => {
   try {
     const { number, message } = req.body;
 
-    await sendWhatsAppMessage(number, message);
+    await sendMessage(number, message);
 
     res.json({
       success: true,
       message: "Message sent"
     });
-
-  } catch (err) {
-
-    console.error("Send message error:", err.message);
+  } catch (error) {
+    console.error(error);
 
     res.status(500).json({
       success: false,
-      error: err.message
+      error: error.message
     });
-
   }
 });
 
 app.listen(PORT, async () => {
-
   console.log(`WhatsApp Service running on port ${PORT}`);
 
   await startWhatsApp();
-
 });
