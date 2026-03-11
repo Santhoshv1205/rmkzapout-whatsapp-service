@@ -15,6 +15,7 @@ function clearLocks() {
 
   locks.forEach((file) => {
     const filePath = path.join(SESSION_PATH, file);
+
     if (fs.existsSync(filePath)) {
       fs.rmSync(filePath, { force: true });
       console.log("Removed lock:", filePath);

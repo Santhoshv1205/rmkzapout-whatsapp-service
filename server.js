@@ -1,70 +1,74 @@
-import express from "express"
-import cors from "cors"
-import qrcode from "qrcode"
+import express from "express";
+import bodyParser from "body-parser";
+import qrcode from "qrcode";
+import client from "./whatsappClient.js";
 
-import { latestQR, isReady } from "./whatsappClient.js"
-import { sendWhatsAppMessage } from "./whatsappService.js"
+import {
+  sendWhatsAppMessage,
+  getStatus,
+  startWhatsApp
+} from "./whatsappService.js";
 
-const app = express()
+const app = express();
+const PORT = process.env.PORT || 8080;
 
-app.use(cors())
-app.use(express.json())
+app.use(bodyParser.json());
+
+let latestQR = null;
+
+client.on("qr", async (qr) => {
+  latestQR = await qrcode.toDataURL(qr);
+});
 
 app.get("/", (req, res) => {
-  res.send("WhatsApp Service Running")
-})
+  res.send("WhatsApp Service Running");
+});
 
-app.get("/status", (req, res) => {
-  res.json({
-    ready: isReady
-  })
-})
-
-app.get("/qr", async (req, res) => {
-
+app.get("/qr", (req, res) => {
   if (!latestQR) {
-    return res.send("QR not available")
+    return res.send("QR not generated yet");
   }
 
-  const qrImage = await qrcode.toDataURL(latestQR)
-
   res.send(`
-  <h2>Scan WhatsApp QR</h2>
-  <img src="${qrImage}" />
-  `)
+  <html>
+  <body style="display:flex;justify-content:center;align-items:center;height:100vh;">
+  <img src="${latestQR}" />
+  </body>
+  </html>
+  `);
+});
 
-})
+app.get("/status", (req, res) => {
+  res.json(getStatus());
+});
 
 app.post("/send", async (req, res) => {
-
   try {
+    const { number, message } = req.body;
 
-    const { number, message } = req.body
-
-    if (!number || !message) {
-      return res.status(400).json({
-        error: "Number and message required"
-      })
-    }
-
-    await sendWhatsAppMessage(number, message)
+    await sendWhatsAppMessage(number, message);
 
     res.json({
-      success: true
-    })
+      success: true,
+      message: "Message sent"
+    });
 
   } catch (err) {
+
+    console.error("Send message error:", err.message);
 
     res.status(500).json({
       success: false,
       error: err.message
-    })
+    });
+
   }
+});
 
-})
+app.listen(PORT, async () => {
 
-const PORT = process.env.PORT || 8080
+  console.log(`WhatsApp Service running on port ${PORT}`);
 
-app.listen(PORT, () => {
-  console.log("WhatsApp Service running on port", PORT)
-})
+  await startWhatsApp();
+
+});
