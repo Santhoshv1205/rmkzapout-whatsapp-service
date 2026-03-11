@@ -1,29 +1,37 @@
-import pkg from "whatsapp-web.js";
-const { Client, LocalAuth } = pkg;
+import pkg from "whatsapp-web.js"
+const { Client, LocalAuth } = pkg
 
-import fs from "fs";
-import path from "path";
+import fs from "fs"
+import path from "path"
 
-const SESSION_PATH = "/app/sessions";
+const SESSION_PATH = "/app/sessions"
 
-function clearLocks() {
-  const locks = [
+function clearChromiumLocks() {
+
+  const lockFiles = [
     "SingletonLock",
     "SingletonSocket",
     "SingletonCookie"
-  ];
+  ]
 
-  locks.forEach((file) => {
-    const filePath = path.join(SESSION_PATH, file);
+  lockFiles.forEach(file => {
+
+    const filePath = path.join(SESSION_PATH, file)
 
     if (fs.existsSync(filePath)) {
-      fs.rmSync(filePath, { force: true });
-      console.log("Removed lock:", filePath);
+      try {
+        fs.rmSync(filePath, { force: true })
+        console.log("Removed Chromium lock:", file)
+      } catch (err) {
+        console.log("Lock remove error:", err.message)
+      }
     }
-  });
+
+  })
+
 }
 
-clearLocks();
+clearChromiumLocks()
 
 const client = new Client({
   authStrategy: new LocalAuth({
@@ -31,16 +39,18 @@ const client = new Client({
   }),
   puppeteer: {
     headless: true,
+    executablePath: "/usr/bin/chromium-browser",
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-gpu",
+      "--disable-dev-tools",
       "--no-first-run",
       "--no-zygote",
       "--single-process"
     ]
   }
-});
+})
 
-export default client;
+export default client
