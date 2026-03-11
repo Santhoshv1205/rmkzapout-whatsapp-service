@@ -16,12 +16,6 @@ export const sendWhatsAppMessage = async (number, message) => {
 
   try {
 
-    const isRegistered = await client.isRegisteredUser(chatId)
-
-    if (!isRegistered) {
-      throw new Error("Number not on WhatsApp")
-    }
-
     await client.sendMessage(chatId, message)
 
     console.log("Message sent to:", cleanNumber)
@@ -30,8 +24,14 @@ export const sendWhatsAppMessage = async (number, message) => {
 
   } catch (err) {
 
-    console.error("Send message error:", err.message)
-    throw err
+    console.log("Retrying send due to frame issue...")
 
+    await new Promise(resolve => setTimeout(resolve, 2000))
+
+    await client.sendMessage(chatId, message)
+
+    console.log("Message sent after retry:", cleanNumber)
+
+    return true
   }
 }

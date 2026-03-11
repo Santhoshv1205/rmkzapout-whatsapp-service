@@ -30,14 +30,19 @@ client.on("qr", (qr) => {
   console.log("QR generated. Open /qr")
 })
 
-client.on("ready", () => {
-  isReady = true
-  latestQR = null
-  console.log("WhatsApp Ready")
-})
-
 client.on("authenticated", () => {
   console.log("WhatsApp Authenticated")
+})
+
+client.on("ready", async () => {
+
+  console.log("WhatsApp Ready")
+
+  // give WhatsApp Web time to fully stabilize
+  await new Promise(resolve => setTimeout(resolve, 5000))
+
+  isReady = true
+  latestQR = null
 })
 
 client.on("disconnected", (reason) => {
