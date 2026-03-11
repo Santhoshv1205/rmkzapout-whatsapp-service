@@ -22,22 +22,33 @@ export const startWhatsApp = async () => {
   });
 
   client.on("qr", async (qr) => {
+
     console.log("QR received");
+
     qrImage = await QRCode.toDataURL(qr);
+
   });
 
   client.on("ready", () => {
+
     console.log("WhatsApp client is ready");
+
     ready = true;
+
   });
 
   client.on("authenticated", () => {
+
     console.log("WhatsApp authenticated");
+
   });
 
   client.on("disconnected", (reason) => {
+
     console.log("WhatsApp disconnected:", reason);
+
     ready = false;
+
   });
 
   await client.initialize();
@@ -61,5 +72,25 @@ export const sendMessage = async (number, message) => {
 
   const chatId = `${cleanNumber}@c.us`;
 
-  return await client.sendMessage(chatId, message);
+  console.log("Sending message to:", chatId);
+
+  try {
+
+    const result = await Promise.race([
+      client.sendMessage(chatId, message),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("WhatsApp send timeout")), 15000)
+      )
+    ]);
+
+    console.log("Message sent successfully");
+
+    return result;
+
+  } catch (error) {
+
+    console.error("WhatsApp send failed:", error);
+
+    throw error;
+  }
 };

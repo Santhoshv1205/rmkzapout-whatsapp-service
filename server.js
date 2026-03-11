@@ -16,6 +16,12 @@ app.get("/", (req, res) => {
   res.send("RMK ZapOut WhatsApp Service Running");
 });
 
+app.get("/status", (req, res) => {
+  res.json({
+    whatsappReady: isClientReady()
+  });
+});
+
 app.get("/qr", (req, res) => {
   const qr = getQR();
 
@@ -29,17 +35,12 @@ app.get("/qr", (req, res) => {
   `);
 });
 
-app.get("/status", (req, res) => {
-  res.json({
-    whatsappReady: isClientReady()
-  });
-});
-
 app.post("/send-message", async (req, res) => {
 
   console.log("Incoming message request:", req.body);
 
   try {
+
     const { number, message } = req.body;
 
     if (!number || !message) {
@@ -50,6 +51,8 @@ app.post("/send-message", async (req, res) => {
     }
 
     const result = await sendMessage(number, message);
+
+    console.log("API response sent");
 
     res.json({
       success: true,
@@ -65,9 +68,17 @@ app.post("/send-message", async (req, res) => {
       error: error.message
     });
   }
+
 });
 
 app.listen(PORT, async () => {
+
   console.log(`WhatsApp Service running on port ${PORT}`);
-  await startWhatsApp();
+
+  try {
+    await startWhatsApp();
+  } catch (error) {
+    console.error("WhatsApp startup failed:", error);
+  }
+
 });
