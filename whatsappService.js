@@ -81,16 +81,15 @@ export const sendMessage = async (number, message) => {
 
   const chatId = `${cleanNumber}@c.us`;
 
-  console.log("Sending message to:", chatId);
+  console.log("Checking chat:", chatId);
 
   try {
 
-    const result = await Promise.race([
-      client.sendMessage(chatId, message),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("WhatsApp send timeout")), 30000)
-      )
-    ]);
+    const chat = await client.getChatById(chatId);
+
+    console.log("Chat found");
+
+    const result = await chat.sendMessage(message);
 
     console.log("Message sent successfully");
 
