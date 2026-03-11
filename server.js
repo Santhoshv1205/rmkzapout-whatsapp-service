@@ -1,6 +1,7 @@
 import express from "express"
 import cors from "cors"
 import qrcode from "qrcode"
+
 import { latestQR, isReady } from "./whatsappClient.js"
 import { sendWhatsAppMessage } from "./whatsappService.js"
 
@@ -28,8 +29,8 @@ app.get("/qr", async (req, res) => {
   const qrImage = await qrcode.toDataURL(latestQR)
 
   res.send(`
-    <h2>Scan WhatsApp QR</h2>
-    <img src="${qrImage}" />
+  <h2>Scan WhatsApp QR</h2>
+  <img src="${qrImage}" />
   `)
 
 })
@@ -46,20 +47,13 @@ app.post("/send", async (req, res) => {
       })
     }
 
-    await Promise.race([
-      sendWhatsAppMessage(number, message),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Send timeout")), 20000)
-      )
-    ])
+    await sendWhatsAppMessage(number, message)
 
     res.json({
       success: true
     })
 
   } catch (err) {
-
-    console.error(err)
 
     res.status(500).json({
       success: false,
