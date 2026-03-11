@@ -1,55 +1,45 @@
-import pkg from "whatsapp-web.js"
+import pkg from "whatsapp-web.js";
+const { Client, LocalAuth } = pkg;
 
-const { Client, LocalAuth } = pkg
+import fs from "fs";
+import path from "path";
 
-export let latestQR = null
-export let isReady = false
+const SESSION_PATH = "/app/sessions";
+
+function clearLocks() {
+  const locks = [
+    "SingletonLock",
+    "SingletonSocket",
+    "SingletonCookie"
+  ];
+
+  locks.forEach((file) => {
+    const filePath = path.join(SESSION_PATH, file);
+    if (fs.existsSync(filePath)) {
+      fs.rmSync(filePath, { force: true });
+      console.log("Removed lock:", filePath);
+    }
+  });
+}
+
+clearLocks();
 
 const client = new Client({
   authStrategy: new LocalAuth({
-  dataPath: "/app/sessions"
-}),
+    dataPath: SESSION_PATH
+  }),
   puppeteer: {
     headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-    protocolTimeout: 300000,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-gpu",
-      "--single-process",
-      "--no-zygote"
+      "--no-first-run",
+      "--no-zygote",
+      "--single-process"
     ]
   }
-})
+});
 
-client.on("qr", (qr) => {
-  latestQR = qr
-  isReady = false
-  console.log("QR generated. Open /qr")
-})
-
-client.on("authenticated", () => {
-  console.log("WhatsApp Authenticated")
-})
-
-client.on("ready", async () => {
-
-  console.log("WhatsApp Ready")
-
-  // give WhatsApp Web time to fully stabilize
-  await new Promise(resolve => setTimeout(resolve, 5000))
-
-  isReady = true
-  latestQR = null
-})
-
-client.on("disconnected", (reason) => {
-  console.log("WhatsApp disconnected:", reason)
-  isReady = false
-})
-
-client.initialize()
-
-export default client
+export default client;
