@@ -12,6 +12,13 @@ const SESSION_PATH =
     : "/app/sessions");
 const CLIENT_ID = process.env.WHATSAPP_CLIENT_ID || "rmkzapout";
 const SEND_TIMEOUT_MS = Number(process.env.WHATSAPP_SEND_TIMEOUT_MS || 45000);
+const CHROMIUM_LOCK_FILES = [
+  "SingletonLock",
+  "SingletonSocket",
+  "SingletonCookie",
+  "SingletonSocket.lock",
+  ".org.chromium.Chromium.scoped_dir"
+];
 
 let client = null;
 let clientInitialization = null;
@@ -20,6 +27,33 @@ let ready = false;
 
 function ensureSessionPath() {
   fs.mkdirSync(SESSION_PATH, { recursive: true });
+}
+
+function getSessionDirPath() {
+  return path.join(SESSION_PATH, `session-${CLIENT_ID}`);
+}
+
+function clearStaleChromiumLocks() {
+  const sessionDir = getSessionDirPath();
+
+  if (!fs.existsSync(sessionDir)) {
+    return;
+  }
+
+  for (const file of CHROMIUM_LOCK_FILES) {
+    const filePath = path.join(sessionDir, file);
+
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+
+    try {
+      fs.rmSync(filePath, { recursive: true, force: true });
+      console.log("Removed stale Chromium lock:", filePath);
+    } catch (error) {
+      console.error("Failed to remove Chromium lock:", filePath, error.message);
+    }
+  }
 }
 
 function getPuppeteerOptions() {
@@ -51,6 +85,7 @@ function getPuppeteerOptions() {
 
 function buildClient() {
   ensureSessionPath();
+  clearStaleChromiumLocks();
 
   const nextClient = new Client({
     authStrategy: new LocalAuth({
