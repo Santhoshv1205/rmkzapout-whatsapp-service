@@ -12,13 +12,14 @@ const SESSION_PATH =
     : "/app/sessions");
 const CLIENT_ID = process.env.WHATSAPP_CLIENT_ID || "rmkzapout";
 const SEND_TIMEOUT_MS = Number(process.env.WHATSAPP_SEND_TIMEOUT_MS || 45000);
-const CHROMIUM_LOCK_FILES = [
+const STARTUP_RETRY_COUNT = Number(process.env.WHATSAPP_STARTUP_RETRY_COUNT || 5);
+const STARTUP_RETRY_DELAY_MS = Number(process.env.WHATSAPP_STARTUP_RETRY_DELAY_MS || 10000);
+const CHROMIUM_LOCK_FILE_NAMES = new Set([
   "SingletonLock",
   "SingletonSocket",
   "SingletonCookie",
-  "SingletonSocket.lock",
-  ".org.chromium.Chromium.scoped_dir"
-];
+  "SingletonSocket.lock"
+]);
 
 let client = null;
 let clientInitialization = null;
@@ -40,18 +41,40 @@ function clearStaleChromiumLocks() {
     return;
   }
 
-  for (const file of CHROMIUM_LOCK_FILES) {
-    const filePath = path.join(sessionDir, file);
+  const stack = [sessionDir];
 
-    if (!fs.existsSync(filePath)) {
-      continue;
-    }
+  while (stack.length > 0) {
+    const currentDir = stack.pop();
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
 
-    try {
-      fs.rmSync(filePath, { recursive: true, force: true });
-      console.log("Removed stale Chromium lock:", filePath);
-    } catch (error) {
-      console.error("Failed to remove Chromium lock:", filePath, error.message);
+    for (const entry of entries) {
+      const entryPath = path.join(currentDir, entry.name);
+
+      if (entry.isDirectory()) {
+        if (entry.name.startsWith(".org.chromium.Chromium.scoped_dir")) {
+          try {
+            fs.rmSync(entryPath, { recursive: true, force: true });
+            console.log("Removed stale Chromium temp dir:", entryPath);
+          } catch (error) {
+            console.error("Failed to remove Chromium temp dir:", entryPath, error.message);
+          }
+          continue;
+        }
+
+        stack.push(entryPath);
+        continue;
+      }
+
+      if (!CHROMIUM_LOCK_FILE_NAMES.has(entry.name)) {
+        continue;
+      }
+
+      try {
+        fs.rmSync(entryPath, { force: true });
+        console.log("Removed stale Chromium lock:", entryPath);
+      } catch (error) {
+        console.error("Failed to remove Chromium lock:", entryPath, error.message);
+      }
     }
   }
 }
@@ -171,12 +194,26 @@ function withTimeout(promise, timeoutMs, label) {
   ]);
 }
 
+function sleep(timeoutMs) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, timeoutMs);
+  });
+}
+
 function isRecoverableSendError(error) {
   return (
     error?.message?.includes("detached Frame") ||
     error?.message?.includes("detached frame") ||
     error?.message?.includes("Execution context was destroyed") ||
     error?.message?.includes("timed out")
+  );
+}
+
+function isProfileInUseError(error) {
+  return (
+    error?.message?.includes("profile appears to be in use") ||
+    error?.message?.includes("Chromium has locked the profile") ||
+    error?.message?.includes("process_singleton_posix")
   );
 }
 
@@ -205,14 +242,37 @@ export const startWhatsApp = async () => {
 
   client = buildClient();
 
-  clientInitialization = client.initialize()
-    .then(() => client)
-    .catch((error) => {
-      clientInitialization = null;
-      client = null;
-      ready = false;
-      throw error;
-    });
+  clientInitialization = (async () => {
+    let lastError;
+
+    for (let attempt = 1; attempt <= STARTUP_RETRY_COUNT; attempt += 1) {
+      try {
+        if (attempt > 1) {
+          clearStaleChromiumLocks();
+          console.log(`Retrying WhatsApp startup (${attempt}/${STARTUP_RETRY_COUNT})`);
+        }
+
+        await client.initialize();
+        return client;
+      } catch (error) {
+        lastError = error;
+
+        if (!isProfileInUseError(error) || attempt === STARTUP_RETRY_COUNT) {
+          break;
+        }
+
+        console.log(
+          `WhatsApp profile is still in use. Waiting ${STARTUP_RETRY_DELAY_MS}ms before retry.`
+        );
+        await sleep(STARTUP_RETRY_DELAY_MS);
+      }
+    }
+
+    clientInitialization = null;
+    client = null;
+    ready = false;
+    throw lastError;
+  })();
 
   return clientInitialization;
 };
