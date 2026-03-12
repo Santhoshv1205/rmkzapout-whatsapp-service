@@ -25,9 +25,17 @@ let client = null;
 let clientInitialization = null;
 let qrImage = null;
 let ready = false;
+let readyResolver = null;
+let readyPromise = null;
 
 function ensureSessionPath() {
   fs.mkdirSync(SESSION_PATH, { recursive: true });
+}
+
+function createReadyPromise() {
+  readyPromise = new Promise((resolve) => {
+    readyResolver = resolve;
+  });
 }
 
 function getSessionDirPath() {
@@ -109,6 +117,7 @@ function getPuppeteerOptions() {
 function buildClient() {
   ensureSessionPath();
   clearStaleChromiumLocks();
+  createReadyPromise();
 
   const nextClient = new Client({
     authStrategy: new LocalAuth({
@@ -132,6 +141,8 @@ function buildClient() {
     ready = true;
     qrImage = null;
     console.log("WhatsApp client is ready");
+    readyResolver?.();
+    readyResolver = null;
 
     try {
       const state = await nextClient.getState();
@@ -220,6 +231,8 @@ function isProfileInUseError(error) {
 async function resetClient(activeClient, reason) {
   console.log("Resetting WhatsApp client:", reason);
   ready = false;
+  readyResolver = null;
+  readyPromise = null;
 
   try {
     await activeClient.destroy();
@@ -253,6 +266,7 @@ export const startWhatsApp = async () => {
         }
 
         await client.initialize();
+        await readyPromise;
         return client;
       } catch (error) {
         lastError = error;
@@ -299,6 +313,16 @@ export const sendMessage = async (number, message) => {
   console.log("Sending message to:", chatId);
 
   try {
+    const isRegistered = await withTimeout(
+      activeClient.isRegisteredUser(chatId),
+      SEND_TIMEOUT_MS,
+      "WhatsApp registration check"
+    );
+
+    if (!isRegistered) {
+      throw new Error("Target number is not registered on WhatsApp");
+    }
+
     const result = await withTimeout(
       activeClient.sendMessage(chatId, message),
       SEND_TIMEOUT_MS,
@@ -317,6 +341,16 @@ export const sendMessage = async (number, message) => {
     await resetClient(activeClient, error.message);
 
     const recoveredClient = await ensureClientReady();
+    const isRegistered = await withTimeout(
+      recoveredClient.isRegisteredUser(chatId),
+      SEND_TIMEOUT_MS,
+      "WhatsApp registration check retry"
+    );
+
+    if (!isRegistered) {
+      throw new Error("Target number is not registered on WhatsApp");
+    }
+
     return withTimeout(
       recoveredClient.sendMessage(chatId, message),
       SEND_TIMEOUT_MS,
