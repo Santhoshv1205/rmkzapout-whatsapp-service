@@ -11,6 +11,7 @@ const SESSION_PATH =
     ? path.join(process.cwd(), ".sessions")
     : "/app/sessions");
 const CLIENT_ID = process.env.WHATSAPP_CLIENT_ID || "rmkzapout";
+const SEND_TIMEOUT_MS = Number(process.env.WHATSAPP_SEND_TIMEOUT_MS || 45000);
 
 let client = null;
 let clientInitialization = null;
@@ -124,6 +125,40 @@ async function ensureClientReady() {
   return client;
 }
 
+function withTimeout(promise, timeoutMs, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+    })
+  ]);
+}
+
+function isRecoverableSendError(error) {
+  return (
+    error?.message?.includes("detached Frame") ||
+    error?.message?.includes("detached frame") ||
+    error?.message?.includes("Execution context was destroyed") ||
+    error?.message?.includes("timed out")
+  );
+}
+
+async function resetClient(activeClient, reason) {
+  console.log("Resetting WhatsApp client:", reason);
+  ready = false;
+
+  try {
+    await activeClient.destroy();
+  } catch (destroyError) {
+    console.error("WhatsApp destroy failed during reset:", destroyError.message);
+  }
+
+  client = null;
+  clientInitialization = null;
+}
+
 export const startWhatsApp = async () => {
   if (ready && client) {
     return client;
@@ -164,50 +199,33 @@ export const sendMessage = async (number, message) => {
     throw new Error("Invalid number");
   }
 
-  const numberId = await activeClient.getNumberId(cleanNumber);
+  const chatId = `${cleanNumber}@c.us`;
 
-  if (!numberId?._serialized) {
-    throw new Error("WhatsApp number is not registered");
-  }
-
-  console.log("Sending message to:", numberId._serialized);
+  console.log("Sending message to:", chatId);
 
   try {
-    const result = await activeClient.sendMessage(numberId._serialized, message);
+    const result = await withTimeout(
+      activeClient.sendMessage(chatId, message),
+      SEND_TIMEOUT_MS,
+      "WhatsApp send"
+    );
     console.log("Message sent successfully");
     return result;
   } catch (error) {
     console.error("WhatsApp send failed:", error);
 
-    const detachedFrame =
-      error?.message?.includes("detached Frame") ||
-      error?.message?.includes("detached frame") ||
-      error?.message?.includes("Execution context was destroyed");
-
-    if (!detachedFrame) {
+    if (!isRecoverableSendError(error)) {
       throw error;
     }
 
-    console.log("Retrying send after detached frame recovery");
-
-    ready = false;
-
-    try {
-      await activeClient.destroy();
-    } catch (destroyError) {
-      console.error("WhatsApp destroy during recovery failed:", destroyError.message);
-    }
-
-    client = null;
-    clientInitialization = null;
+    console.log("Retrying send after WhatsApp client recovery");
+    await resetClient(activeClient, error.message);
 
     const recoveredClient = await ensureClientReady();
-    const recoveredNumberId = await recoveredClient.getNumberId(cleanNumber);
-
-    if (!recoveredNumberId?._serialized) {
-      throw new Error("WhatsApp number is not registered");
-    }
-
-    return recoveredClient.sendMessage(recoveredNumberId._serialized, message);
+    return withTimeout(
+      recoveredClient.sendMessage(chatId, message),
+      SEND_TIMEOUT_MS,
+      "WhatsApp send retry"
+    );
   }
 };
